@@ -1,3 +1,12 @@
+buildscript {
+	repositories {
+		mavenCentral()
+	}
+	dependencies {
+		classpath 'com.guardsquare:proguard-gradle:7.10.0'
+	}
+}
+
 plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
@@ -23,8 +32,26 @@ tasks.withType(JavaCompile).configureEach {
 	it.options.release = 25
 }
 
+def jarTask = tasks.named('jar')
+
+jarTask.configure {
+	destinationDirectory = layout.buildDirectory.dir('tmp/unobfuscated')
+}
+
+tasks.register('obfuscateJar', proguard.gradle.ProGuardTask) {
+	dependsOn jarTask
+	injars jarTask.get().archiveFile.get().asFile
+	outjars layout.buildDirectory.file("libs/${jarTask.get().archiveFileName.get()}").get().asFile
+	configuration 'proguard-rules.pro'
+	libraryjars configurations.compileClasspath
+	libraryjars "${System.getProperty('java.home')}/jmods/java.base.jmod(!**.jar;!module-info.class)"
+}
+
+tasks.named('assemble') {
+	dependsOn tasks.named('obfuscateJar')
+}
+
 java {
-	withSourcesJar()
 	sourceCompatibility = JavaVersion.VERSION_25
 	targetCompatibility = JavaVersion.VERSION_25
 }
